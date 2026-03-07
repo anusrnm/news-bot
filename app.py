@@ -58,23 +58,6 @@ def save_history(history):
     with open(DB_FILE, "w") as f:
         json.dump(history, f)
 
-
-# def main():
-#     logging.info("Starting fetch...")
-#     # feedparser handles the schema mapping automatically
-#     feed = feedparser.parse(RSS_URL)
-    
-#     if not feed.entries:
-#         logging.warning("No entries found. Check if the URL is blocked or down.")
-#         return
-
-#     for entry in feed.entries[:3]:
-#         # Escape HTML characters (<, >, &) to prevent 400 errors
-#         clean_title = html.escape(entry.title)
-#         formatted_msg = f"<b>{clean_title}</b>\n\n{entry.link}"
-#         send_telegram(formatted_msg)
-
-
 def main():
     logging.info("Starting fetch...")
     history = load_history()
@@ -84,17 +67,27 @@ def main():
         if not feed.entries:
             logging.warning(f"No entries found for {url}")
             continue
-            
-        latest_item = feed.entries[0]
-        latest_link = latest_item.link
-        
-        # Only send if the link is different from the last time we checked THIS feed
-        if history.get(name) != latest_link:
-            clean_title = html.escape(latest_item.title)
-            msg = f"<b>[{name}]</b>\n{clean_title}\n\n{latest_link}"
-            
+
+        # Get last sent link for this feed
+        last_sent_link = history.get(name)
+        new_items = []
+
+        # Collect all new items since last sent
+        for entry in feed.entries:
+            if entry.link == last_sent_link:
+                break
+            new_items.append(entry)
+
+
+        # Aggregate and send one message per feed
+        if new_items:
+            msg_lines = [f"<b>[{name}]</b>"]
+            for entry in reversed(new_items):
+                clean_title = html.escape(entry.title)
+                msg_lines.append(f"{clean_title}\n{entry.link}")
+            msg = "\n\n".join(msg_lines)
             send_telegram(msg)
-            history[name] = latest_link # Update history for this feed
+            history[name] = new_items[0].link
 
     save_history(history)
 
