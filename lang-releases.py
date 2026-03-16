@@ -18,6 +18,7 @@ DATA_FILE = "releases_state.json"
 REPOS = {
     "Node.js LTS": {"method": "node_lts"},
     "Node.js": {"path": "nodejs/node", "method": "release"},
+    "Monaco": {"path": "microsoft/monaco-editor", "method": "release"},
     "Bun": {"path": "oven-sh/bun", "method": "release"},
     "Deno": {"path": "denoland/deno", "method": "release"},
     "Rust": {"path": "rust-lang/rust", "method": "release"},
