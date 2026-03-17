@@ -22,10 +22,26 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
-# Check interval in seconds (1 minute = 60 seconds)
-CHECK_INTERVAL = 60
+# Default check interval in seconds (1 minute)
+DEFAULT_CHECK_INTERVAL = 60
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Persist state next to this script so background services always use a stable path.
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ip_state.txt")
+DATA_FILE = os.path.join(SCRIPT_DIR, "ip_state.txt")
+# Write a number (seconds) to this file to change the interval on the fly
+INTERVAL_FILE = os.path.join(SCRIPT_DIR, "check_interval.txt")
+
+
+def get_check_interval() -> int:
+    """Read interval from file if present, otherwise use default."""
+    try:
+        if os.path.exists(INTERVAL_FILE):
+            with open(INTERVAL_FILE, 'r') as f:
+                value = int(f.read().strip())
+                if value > 0:
+                    return value
+    except (ValueError, OSError):
+        pass
+    return DEFAULT_CHECK_INTERVAL
 
 
 class IPMonitor:
@@ -147,8 +163,7 @@ class IPMonitor:
     def run(self):
         """Main monitoring loop."""
         logger.info("Starting Public IP Monitor")
-        logger.info(f"Check interval: {CHECK_INTERVAL} seconds")
-        
+
         if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
             logger.warning(
                 "⚠️  Telegram not configured. Set TELEGRAM_TOKEN and "
@@ -157,8 +172,10 @@ class IPMonitor:
         
         try:
             while True:
+                interval = get_check_interval()
+                logger.info(f"Check interval: {interval}s")
                 self.check_ip()
-                time.sleep(CHECK_INTERVAL)
+                time.sleep(interval)
         except KeyboardInterrupt:
             logger.info("Monitor stopped by user")
         except Exception as e:
