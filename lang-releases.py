@@ -3,15 +3,15 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 # --- CONFIGURATION ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-LOG_FILE = "releases_bot.log"
-DATA_FILE = "releases_state.json"
+# Use absolute paths so systemd services always find files in the script directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(SCRIPT_DIR, "releases_bot.log")
+DATA_FILE = os.path.join(SCRIPT_DIR, "releases_state.json")
 
 # Repositories and their preferred check methods
 # 'release' uses /releases/latest; 'tag' uses /tags
@@ -27,7 +27,7 @@ REPOS = {
 }
 
 # 1. Create a logger
-logger = logging.getLogger("my_app")
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # 2. Setup the handler (1MB per file, 3 backups)

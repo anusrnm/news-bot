@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Public IP Monitor - Alternates between AWS and ipinfo APIs to check public IP
+Public IP Monitor - Alternates between AWS and ipify APIs to check public IP
 and sends a Telegram notification when the IP address changes.
 """
 
@@ -10,9 +10,6 @@ import requests
 import logging
 from datetime import datetime
 from typing import Optional
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -27,8 +24,8 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
 # Check interval in seconds (1 minute = 60 seconds)
 CHECK_INTERVAL = 60
-# File to persist the last known IP
-DATA_FILE = "ip_state.txt"
+# Persist state next to this script so background services always use a stable path.
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ip_state.txt")
 
 
 class IPMonitor:
@@ -118,6 +115,7 @@ class IPMonitor:
     def check_ip(self):
         """Check IP and send notification if changed."""
         logger.info(f"Check using {self.current_source.upper()}")
+        source_used = self.current_source.upper()
         
         current_ip = self.get_current_ip()
         
@@ -137,7 +135,7 @@ class IPMonitor:
                 f"Previous IP: {self.previous_ip}\n"
                 f"New IP: {current_ip}\n"
                 f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"Source: {self.current_source.upper()}"
+                f"Source: {source_used}"
             )
             logger.warning(f"IP changed from {self.previous_ip} to {current_ip}")
             self.send_telegram_message(message)
