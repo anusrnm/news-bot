@@ -10,6 +10,9 @@ import requests
 import logging
 from datetime import datetime
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +35,6 @@ class IPMonitor:
     def __init__(self):
         self.previous_ip = self.load_previous_ip()
         self.current_source = 'aws'  # Start with AWS
-        self.run_count = 0
         
     def load_previous_ip(self) -> Optional[str]:
         """Load the last known IP from file."""
@@ -115,8 +117,7 @@ class IPMonitor:
     
     def check_ip(self):
         """Check IP and send notification if changed."""
-        self.run_count += 1
-        logger.info(f"Check #{self.run_count} using {self.current_source.upper()}")
+        logger.info(f"Check using {self.current_source.upper()}")
         
         current_ip = self.get_current_ip()
         
