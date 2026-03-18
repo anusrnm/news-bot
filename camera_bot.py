@@ -4,8 +4,9 @@ Camera Bot - Captures an image from the Raspberry Pi camera and sends it
 back via Telegram whenever a user sends a message to the bot.
 
 Supported camera stacks (tried in order):
-  1. libcamera-still  — Raspberry Pi OS Bullseye / Bookworm (recommended)
-  2. raspistill       — legacy camera stack (older Raspbian / legacy mode)
+    1. rpicam-still     — Raspberry Pi OS Bookworm (recommended)
+    2. libcamera-still  — Raspberry Pi OS Bullseye
+    3. raspistill       — legacy camera stack (older Raspbian / legacy mode)
 
 Setup:
     1. Export TELEGRAM_TOKEN and optional TELEGRAM_CHAT_ID in the shell,
@@ -62,10 +63,19 @@ def _run_capture(cmd: list[str], output_path: str) -> bool:
         result = subprocess.run(
             cmd,
             capture_output=True,
+            text=True,
             timeout=CAPTURE_TIMEOUT,
         )
+        if result.returncode != 0:
+            logger.warning(
+                "Camera command failed: %s (exit=%s, stderr=%s)",
+                cmd[0],
+                result.returncode,
+                (result.stderr or "").strip(),
+            )
         return result.returncode == 0 and os.path.isfile(output_path)
     except FileNotFoundError:
+        logger.info("Camera command not found: %s", cmd[0])
         return False  # command not available
     except subprocess.TimeoutExpired:
         logger.warning("Camera command timed out: %s", cmd[0])
@@ -76,9 +86,9 @@ def capture_image() -> bytes:
     """
     Capture a JPEG from the Pi camera and return the raw bytes.
 
-    Tries libcamera-still first (newer OS), then falls back to raspistill
-    (legacy camera stack) to support the widest range of Raspberry Pi OS
-    versions on the RPi 1 B+.
+    Tries rpicam-still first (Bookworm), then libcamera-still (Bullseye),
+    then falls back to raspistill (legacy stack) to support the widest
+    range of Raspberry Pi OS versions on the RPi 1 B+.
 
     Raises RuntimeError if neither tool succeeds.
     """
@@ -86,7 +96,17 @@ def capture_image() -> bytes:
         output_path = tmp.name
 
     try:
-        # libcamera-still (Bullseye / Bookworm and newer)
+        # rpicam-still (Bookworm and newer)
+        if _run_capture(
+            ["rpicam-still", "--output", output_path, "--nopreview",
+             "--timeout", "2000"],
+            output_path,
+        ):
+            logger.info("Captured with rpicam-still")
+            with open(output_path, "rb") as f:
+                return f.read()
+
+        # libcamera-still (Bullseye)
         if _run_capture(
             ["libcamera-still", "--output", output_path, "--nopreview",
              "--timeout", "2000"],
@@ -108,7 +128,7 @@ def capture_image() -> bytes:
                 return f.read()
 
         raise RuntimeError(
-            "Both libcamera-still and raspistill failed. "
+            "All camera commands failed (rpicam-still, libcamera-still, raspistill). "
             "Check that the camera module is connected and enabled "
             "(sudo raspi-config → Interface Options → Camera)."
         )
