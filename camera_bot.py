@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Camera Bot - Captures an image from the Raspberry Pi camera and sends it
-back via Telegram whenever a user sends a message to the bot.
+back via Telegram when an authorized user sends an explicit command.
 
 Supported camera stacks (tried in order):
     1. rpicam-still     — Raspberry Pi OS Bookworm (recommended)
@@ -9,8 +9,9 @@ Supported camera stacks (tried in order):
     3. raspistill       — legacy camera stack (older Raspbian / legacy mode)
 
 Setup:
-    1. Export TELEGRAM_TOKEN and optional TELEGRAM_CHAT_ID in the shell,
-         or use a systemd EnvironmentFile.
+    1. Export TELEGRAM_TOKEN and set TELEGRAM_ALLOWED_USER_IDS to your
+        Telegram user ID. TELEGRAM_CHAT_ID remains supported as an
+        additional allowlist if needed.
     2. Enable the camera with `sudo raspi-config` -> Interface Options -> Camera.
     3. pip install -r requirements.txt
     4. python3 camera_bot.py
@@ -27,18 +28,25 @@ from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
-    MessageHandler,
-    filters,
 )
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 TOKEN = os.getenv("TELEGRAM_TOKEN", "")
-# Comma-separated list of chat IDs that are allowed to use the bot.
-# Leave empty to allow everyone (not recommended for a camera bot).
+# Comma-separated list of Telegram user IDs allowed to use the bot.
+_raw_user_ids = os.getenv("TELEGRAM_ALLOWED_USER_IDS", "")
+ALLOWED_USER_IDS: set[str] = {
+    user_id.strip() for user_id in _raw_user_ids.split(",") if user_id.strip()
+}
+
+# Comma-separated list of chat IDs allowed to use the bot.
+# Intended mainly for backwards compatibility or special cases.
 _raw_ids = os.getenv("TELEGRAM_CHAT_ID", "")
 ALLOWED_CHAT_IDS: set[str] = {cid.strip() for cid in _raw_ids.split(",") if cid.strip()}
+
+# Restrict capture requests to private chats by default.
+ALLOW_GROUP_CHATS = os.getenv("TELEGRAM_ALLOW_GROUP_CHATS", "false").lower() == "true"
 
 # Camera capture timeout in seconds
 CAPTURE_TIMEOUT = 20
@@ -142,11 +150,26 @@ def capture_image() -> bytes:
 # ---------------------------------------------------------------------------
 
 def is_authorized(update: Update) -> bool:
-    """Return True if the sender is in the allowed-chat-IDs list (or the
-    list is empty, which disables the restriction)."""
-    if not ALLOWED_CHAT_IDS:
-        return True
-    return str(update.effective_chat.id) in ALLOWED_CHAT_IDS
+    """Return True only for explicitly allowed users or chats."""
+    effective_chat = update.effective_chat
+    effective_user = update.effective_user
+
+    if effective_chat is None or effective_user is None:
+        return False
+
+    if not ALLOW_GROUP_CHATS and effective_chat.type != "private":
+        return False
+
+    if not ALLOWED_USER_IDS and not ALLOWED_CHAT_IDS:
+        logger.error(
+            "Authorization rejected because no allowlist is configured. "
+            "Set TELEGRAM_ALLOWED_USER_IDS or TELEGRAM_CHAT_ID."
+        )
+        return False
+
+    user_allowed = str(effective_user.id) in ALLOWED_USER_IDS
+    chat_allowed = str(effective_chat.id) in ALLOWED_CHAT_IDS
+    return user_allowed or chat_allowed
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +180,25 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply with a brief usage description."""
     await update.message.reply_text(
         "Camera Bot ready.\n\n"
-        "Send any message or /photo to capture an image from the Pi camera."
+        "Use /photo or /capture to take an image from the Pi camera.\n"
+        "Use /whoami to print the Telegram IDs needed for the allowlist."
+    )
+
+
+async def cmd_whoami(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Return Telegram identifiers to help configure the allowlist."""
+    effective_chat = update.effective_chat
+    effective_user = update.effective_user
+
+    if effective_chat is None or effective_user is None:
+        await update.message.reply_text("Could not determine chat or user information.")
+        return
+
+    await update.message.reply_text(
+        "Use these values in your service environment:\n\n"
+        f"TELEGRAM_ALLOWED_USER_IDS={effective_user.id}\n"
+        f"TELEGRAM_CHAT_ID={effective_chat.id}\n"
+        f"chat_type={effective_chat.type}"
     )
 
 
@@ -165,8 +206,10 @@ async def send_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     """Capture a photo and send it back to the requester."""
     if not is_authorized(update):
         logger.warning(
-            "Rejected request from unauthorized chat_id=%s",
-            update.effective_chat.id,
+            "Rejected request from unauthorized user_id=%s chat_id=%s chat_type=%s",
+            getattr(update.effective_user, "id", "unknown"),
+            getattr(update.effective_chat, "id", "unknown"),
+            getattr(update.effective_chat, "type", "unknown"),
         )
         await update.message.reply_text("Sorry, you are not authorized to use this bot.")
         return
@@ -202,15 +245,20 @@ def main() -> None:
             "Export TELEGRAM_TOKEN in the shell or provide it through systemd."
         )
 
+    if not ALLOWED_USER_IDS and not ALLOWED_CHAT_IDS:
+        logger.warning(
+            "No Telegram allowlist is configured. The bot will reject all capture requests "
+            "until TELEGRAM_ALLOWED_USER_IDS or TELEGRAM_CHAT_ID is set."
+        )
+
     app = Application.builder().token(TOKEN).build()
 
     # /start - welcome
     app.add_handler(CommandHandler("start", cmd_start))
+    # /whoami - reveal current Telegram identifiers for allowlist setup
+    app.add_handler(CommandHandler("whoami", cmd_whoami))
     # /photo or /capture - explicit capture command
     app.add_handler(CommandHandler(["photo", "capture"], send_photo))
-    # Any text message also triggers a capture
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, send_photo))
-
     logger.info("Camera bot started. Waiting for messages...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

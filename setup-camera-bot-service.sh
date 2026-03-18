@@ -33,10 +33,16 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
 fi
 
 read -r -p "Enter Telegram Bot Token: " TELEGRAM_TOKEN
+read -r -p "Enter allowed Telegram User ID(s), comma-separated: " TELEGRAM_ALLOWED_USER_IDS
 read -r -p "Enter allowed Telegram Chat ID(s), comma-separated (optional): " TELEGRAM_CHAT_ID
 
 if [[ -z "$TELEGRAM_TOKEN" ]]; then
     echo "Telegram token cannot be empty"
+    exit 1
+fi
+
+if [[ -z "$TELEGRAM_ALLOWED_USER_IDS" ]]; then
+    echo "At least one allowed Telegram user ID is required"
     exit 1
 fi
 
@@ -48,6 +54,7 @@ echo "Creating environment file at $ENV_FILE"
 
 cat > "$ENV_FILE" << EOF
 TELEGRAM_TOKEN=$TELEGRAM_TOKEN
+TELEGRAM_ALLOWED_USER_IDS=$TELEGRAM_ALLOWED_USER_IDS
 TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
 EOF
 
