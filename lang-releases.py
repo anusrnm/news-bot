@@ -19,9 +19,12 @@ REPOS = {
     "Node.js LTS": {"method": "node_lts"},
     "Node.js": {"path": "nodejs/node", "method": "release"},
     "Monaco": {"path": "microsoft/monaco-editor", "method": "release"},
+    "Spring Framework": {"path": "spring-projects/spring-framework", "method": "release"},
+    "Spring Boot": {"path": "spring-projects/spring-boot", "method": "release"},
     "Bun": {"path": "oven-sh/bun", "method": "release"},
     "Deno": {"path": "denoland/deno", "method": "release"},
     "Rust": {"path": "rust-lang/rust", "method": "release"},
+    "Python": {"path": "python/cpython", "method": "tag"},
     "Nim": {"path": "nim-lang/Nim", "method": "tag"},
     "Go": {"path": "golang/go", "method": "go_api"}
 }
