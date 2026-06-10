@@ -26,7 +26,8 @@ REPOS = {
     "Rust": {"path": "rust-lang/rust", "method": "release"},
     "Python": {"path": "python/cpython", "method": "tag"},
     "Nim": {"path": "nim-lang/Nim", "method": "tag"},
-    "Go": {"path": "golang/go", "method": "go_api"}
+    "Go": {"path": "golang/go", "method": "go_api"},
+    "JupyterLab": { path: "jupyterlab/jupyterlab", method: "release" }
 }
 
 # 1. Create a logger

@@ -23,7 +23,8 @@ const REPOS: Record<string, { path?: string; method: string }> = {
   "Rust": { path: "rust-lang/rust", method: "release" },
   "Python": { path: "python/cpython", method: "tag" },
   "Nim": { path: "nim-lang/Nim", method: "tag" },
-  "Go": { path: "golang/go", method: "go_api" }
+  "Go": { path: "golang/go", method: "go_api" },
+  "JupyterLab": { path: "jupyterlab/jupyterlab", method: "release" }
 };
 
 // Environment variables (set in Deno Deploy dashboard)
