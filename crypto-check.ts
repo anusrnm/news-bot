@@ -7,9 +7,8 @@ const CONFIG = {
   // Target currency
   currency: "inr", 
   // Cron schedule: "0 9 * * *" means every day at 09:00 AM
-  cronSchedule: "0 9 * * *", 
+  cronSchedule: "0 8 * * *", 
   port: 8000,
-  stateFile: "state.json",
 };
 
 // Environment Variables
@@ -20,6 +19,9 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   console.error("Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set.");
   Deno.exit(1);
 }
+
+// Initialize Deno KV for persistent state storage
+const KV = await Deno.openKv();
 
 // ==========================================
 // State Persistence
@@ -33,15 +35,34 @@ interface PriceState {
 
 async function loadState(): Promise<PriceState> {
   try {
-    const text = await Deno.readTextFile(CONFIG.stateFile);
-    return JSON.parse(text);
-  } catch {
-    return {}; // Return empty state if file doesn't exist
+    const entry = await KV.get<string[]>(["crypto_price_state"]);
+    if (entry.value) {
+      // Reconstruct object from flattened [key, value, key, value...] array
+      const state: PriceState = {};
+      for (let i = 0; i < entry.value.length; i += 2) {
+        const key = entry.value[i];
+        const valueStr = entry.value[i + 1];
+        state[key] = JSON.parse(valueStr);
+      }
+      return state;
+    }
+  } catch (error) {
+    console.error(`[State Load Error] ${error}`);
   }
+  return {}; // Return empty state if KV is empty or error occurs
 }
 
 async function saveState(state: PriceState) {
-  await Deno.writeTextFile(CONFIG.stateFile, JSON.stringify(state, null, 2));
+  try {
+    // Flatten object to array for KV storage
+    const entries: string[] = [];
+    for (const [key, value] of Object.entries(state)) {
+      entries.push(key, JSON.stringify(value));
+    }
+    await KV.set(["crypto_price_state"], entries);
+  } catch (error) {
+    console.error(`[State Save Error] ${error}`);
+  }
 }
 
 // ==========================================
