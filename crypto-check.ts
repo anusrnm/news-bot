@@ -139,7 +139,7 @@ async function runDailyCheck() {
   }
 
   if (changes.length > 0) {
-    const msg = `📊 *Daily Crypto Update*\n\n` + changes.join("\n");
+    const msg = changes.join("\n") + `\n\n📊 *Daily Crypto Update*`;
     await sendTelegramAlert(msg);
   } else {
     console.log("[Cron] No price changes detected. Skipping Telegram alert.");
